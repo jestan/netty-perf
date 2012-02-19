@@ -318,27 +318,27 @@ public final class Histogram
     {
         StringBuilder sb = new StringBuilder();
 
-        sb.append("Histogram{");
+        sb.append("Histogram {\n");
 
-        sb.append("min=").append(getMin()).append(", ");
-        sb.append("max=").append(getMax()).append(", ");
-        sb.append("mean=").append(getMean()).append(", ");
-        sb.append("99%=").append(getTwoNinesUpperBound()).append(", ");
-        sb.append("99.99%=").append(getFourNinesUpperBound());
+        sb.append(" min=").append(getMin()).append(", ");
+        sb.append(" max=").append(getMax()).append(", ");
+        sb.append(" mean=").append(getMean()).append(", ");
+        sb.append(" 99%=").append(getTwoNinesUpperBound()).append(", ");
+        sb.append(" 99.99%=").append(getFourNinesUpperBound());
 
-        sb.append("\nIntervals [");
+        sb.append("\n intervals = [");
         for (int i = 0, size = counts.length; i < size; i++)
         {
-            sb.append(upperBounds[i]).append('=').append(counts[i]).append(", ");
+            sb.append("\n  ").append(upperBounds[i]).append('=').append(counts[i]).append(", ");
         }
 
         if (counts.length > 0)
         {
             sb.setLength(sb.length() - 2);
         }
-        sb.append(']');
+        sb.append("] ");
 
-        sb.append('}');
+        sb.append("\n}");
 
         return sb.toString();
     }
