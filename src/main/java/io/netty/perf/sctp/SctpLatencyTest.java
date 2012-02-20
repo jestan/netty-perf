@@ -47,11 +47,20 @@ public class SctpLatencyTest implements NettyLatencyTest {
         sb.getPipeline().addLast("decoder", new FixedLengthFrameDecoder(8));
         sb.getPipeline().addLast("handler", sh);
 
+        sb.setOption("receiveBufferSizePredictorFactory",
+                new AdaptiveReceiveBufferSizePredictorFactory(8, 8, 8));
+        sb.setOption("child.sctpNoDelay", true);
+
+
 
         cb.getPipeline().addLast("sctp-decoder", new SctpFrameDecoder());
         cb.getPipeline().addLast("sctp-encoder", new SctpFrameEncoder());
         cb.getPipeline().addLast("decoder", new FixedLengthFrameDecoder(8));
         cb.getPipeline().addLast("handler", ch);
+
+        cb.setOption("receiveBufferSizePredictorFactory",
+                new AdaptiveReceiveBufferSizePredictorFactory(8, 8, 8));
+        cb.setOption("sctpNoDelay", true);
 
         Channel sc = sb.bind(new InetSocketAddress("127.0.0.1", 0));
         int port = ((InetSocketAddress) sc.getLocalAddress()).getPort();

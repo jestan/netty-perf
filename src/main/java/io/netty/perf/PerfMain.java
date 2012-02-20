@@ -31,7 +31,7 @@ public class PerfMain {
 
         intervals[intervals.length - 1] = Long.MAX_VALUE;
 
-        executePerf(new SctpLatencyTest(intervals), 100000);
+        executePerf(new SctpLatencyTest(intervals), 1000000);
     }
 
     private static void executePerf(NettyLatencyTest perfBench, int count) {
