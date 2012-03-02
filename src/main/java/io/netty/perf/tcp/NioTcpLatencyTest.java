@@ -1,4 +1,4 @@
-package io.netty.perf.sctp;
+package io.netty.perf.tcp;
 /*
  * Copyright 2011 The Netty Project
  *
@@ -16,58 +16,61 @@ package io.netty.perf.sctp;
  */
 import io.netty.bootstrap.ClientBootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.AdaptiveReceiveBufferSizePredictorFactory;
-import io.netty.channel.ChannelFactory;
-import io.netty.channel.ChannelHandler;
-import io.netty.channel.ServerChannelFactory;
+import io.netty.buffer.ChannelBuffer;
+import io.netty.buffer.ChannelBuffers;
+import io.netty.channel.*;
 import io.netty.channel.sctp.SctpClientSocketChannelFactory;
 import io.netty.channel.sctp.SctpServerSocketChannelFactory;
 import io.netty.channel.sctp.codec.SctpFrameDecoder;
 import io.netty.channel.sctp.codec.SctpFrameEncoder;
+import io.netty.channel.socket.ClientSocketChannelFactory;
+import io.netty.channel.socket.ServerSocketChannelFactory;
+import io.netty.channel.socket.nio.NioClientSocketChannelFactory;
+import io.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import io.netty.handler.codec.frame.FixedLengthFrameDecoder;
 import io.netty.perf.NettyLatencyTest;
+import io.netty.perf.collection.Histogram;
+import io.netty.util.internal.ExecutorUtil;
 
+import java.net.InetSocketAddress;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.atomic.AtomicReference;
 
-public class SctpLatencyTest extends NettyLatencyTest {
-
-    public SctpLatencyTest(long[] latencyIntervals) {
+public class NioTcpLatencyTest extends NettyLatencyTest {
+    public NioTcpLatencyTest(long[] latencyIntervals) {
         super(latencyIntervals);
     }
 
     @Override
     public void prepareServerBootStrap(ServerBootstrap sb, ChannelHandler sh) {
-        sb.getPipeline().addLast("sctp-decoder", new SctpFrameDecoder());
-        sb.getPipeline().addLast("sctp-encoder", new SctpFrameEncoder());
         sb.getPipeline().addLast("decoder", new FixedLengthFrameDecoder(ECHO_FRAME_SIZE));
         sb.getPipeline().addLast("handler", sh);
 
         sb.setOption("receiveBufferSizePredictorFactory",
                 new AdaptiveReceiveBufferSizePredictorFactory(ECHO_FRAME_SIZE, ECHO_FRAME_SIZE, ECHO_FRAME_SIZE));
-        sb.setOption("child.sctpNoDelay", true);
+        sb.setOption("child.tcpNoDelay", true);
 
     }
 
     @Override
     public void prepareClientBootStrap(ClientBootstrap cb, ChannelHandler ch) {
-        cb.getPipeline().addLast("sctp-decoder", new SctpFrameDecoder());
-        cb.getPipeline().addLast("sctp-encoder", new SctpFrameEncoder());
         cb.getPipeline().addLast("decoder", new FixedLengthFrameDecoder(ECHO_FRAME_SIZE));
         cb.getPipeline().addLast("handler", ch);
 
         cb.setOption("receiveBufferSizePredictorFactory",
                 new AdaptiveReceiveBufferSizePredictorFactory(ECHO_FRAME_SIZE, ECHO_FRAME_SIZE, ECHO_FRAME_SIZE));
-        cb.setOption("sctpNoDelay", true);
+        cb.setOption("tcpNoDelay", true);
     }
 
     @Override
     public ChannelFactory newClientChannelFactory(ExecutorService executorService) {
-        return new SctpClientSocketChannelFactory(executorService, executorService);
+        return new NioClientSocketChannelFactory(executorService, executorService);
     }
 
     @Override
     public ServerChannelFactory newServerChannelFactory(ExecutorService executorService) {
-        return new SctpServerSocketChannelFactory(executorService, executorService);
+        return new NioServerSocketChannelFactory(executorService, executorService);
     }
-
 }

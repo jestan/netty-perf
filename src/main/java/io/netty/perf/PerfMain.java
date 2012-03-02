@@ -16,7 +16,7 @@ package io.netty.perf;
  */
 
 import io.netty.perf.collection.Histogram;
-import io.netty.perf.sctp.SctpLatencyTest;
+import io.netty.perf.tcp.NioTcpLatencyTest;
 
 public class PerfMain {
     public static void main(String[] args) {
@@ -31,7 +31,7 @@ public class PerfMain {
 
         intervals[intervals.length - 1] = Long.MAX_VALUE;
 
-        executePerf(new SctpLatencyTest(intervals), 1000000);
+        executePerf(new NioTcpLatencyTest(intervals), 1000000);
     }
 
     private static void executePerf(NettyLatencyTest perfBench, int count) {
