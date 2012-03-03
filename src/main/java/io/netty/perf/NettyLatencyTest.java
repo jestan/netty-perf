@@ -40,8 +40,6 @@ public abstract class NettyLatencyTest {
     private LatencyMeterHandler sh;
 
 
-    public abstract String name();
-
     public NettyLatencyTest(long[] latencyIntervals) {
         this.latencyIntervals = latencyIntervals;
     }
@@ -80,9 +78,8 @@ public abstract class NettyLatencyTest {
     public Histogram execute(int count) {
 
         Histogram currentHistogram = new Histogram(latencyIntervals);
-        ChannelBuffer buffer = ChannelBuffers.directBuffer(ECHO_FRAME_SIZE);
         for (int i = 0; i < count; i++) {
-            buffer.clear();
+            ChannelBuffer buffer = ChannelBuffers.directBuffer(ECHO_FRAME_SIZE);
             buffer.writeLong(System.nanoTime());
             ch.channel.write(buffer);
             try {
