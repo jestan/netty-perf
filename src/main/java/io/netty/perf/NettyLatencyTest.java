@@ -15,17 +15,14 @@ package io.netty.perf;
  * under the License.
  */
 
-import io.netty.bootstrap.ClientBootstrap;
+import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ChannelBuffer;
-import io.netty.buffer.ChannelBuffers;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import io.netty.channel.*;
 import io.netty.perf.collection.Histogram;
-import io.netty.util.internal.ExecutorUtil;
 
 import java.net.InetSocketAddress;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -34,10 +31,11 @@ public abstract class NettyLatencyTest {
 
     private final long[] latencyIntervals;
 
-    private ExecutorService executor;
+    protected final LatencyMeterHandler clientMeter = new LatencyMeterHandler();
+    protected final LatencyMeterHandler serverMeter = new LatencyMeterHandler();
 
-    private LatencyMeterHandler ch;
-    private LatencyMeterHandler sh;
+    private ServerBootstrap sb;
+    private Bootstrap cb;
 
 
     public NettyLatencyTest(long[] latencyIntervals) {
@@ -45,46 +43,43 @@ public abstract class NettyLatencyTest {
     }
 
     public void setup() {
-        executor = Executors.newCachedThreadPool();
-        ServerBootstrap sb = new ServerBootstrap(newServerChannelFactory(executor));
-        ClientBootstrap cb = new ClientBootstrap(newClientChannelFactory(executor));
 
-        sh = new LatencyMeterHandler();
-        ch = new LatencyMeterHandler();
+        sb = mkServerBootStrap();
 
-        prepareServerBootStrap(sb, sh);
+        cb = mkClientBootStrap();
 
+        Channel sc = sb.
+                channel(serverChannel()).
+                localAddress(new InetSocketAddress("127.0.0.1", 0)).
+                bind().syncUninterruptibly().channel();
 
-        prepareClientBootStrap(cb, ch);
+        int port = ((InetSocketAddress) sc.localAddress()).getPort();
 
-        Channel sc = sb.bind(new InetSocketAddress("127.0.0.1", 0));
-        int port = ((InetSocketAddress) sc.getLocalAddress()).getPort();
-
-        ChannelFuture ccf = cb.connect(new InetSocketAddress("127.0.0.1", port));
-        ccf.awaitUninterruptibly();
+        cb.channel(clientChannel()).
+                remoteAddress(new InetSocketAddress("127.0.0.1", port)).
+                connect().syncUninterruptibly();
     }
 
-    public abstract void prepareServerBootStrap(ServerBootstrap serverBootstrap, ChannelHandler sh);
+    public abstract ServerBootstrap mkServerBootStrap();
 
-    public abstract void prepareClientBootStrap(ClientBootstrap clientBootstrap, ChannelHandler ch);
-
-
-    public abstract ChannelFactory newClientChannelFactory(ExecutorService executorService);
+    public abstract Bootstrap mkClientBootStrap();
 
 
-    public abstract ServerChannelFactory newServerChannelFactory(ExecutorService executorService);
+    public abstract Class<? extends Channel> clientChannel();
+
+
+    public abstract Class<? extends Channel> serverChannel();
 
 
     public Histogram execute(int count) {
-
         Histogram currentHistogram = new Histogram(latencyIntervals);
         for (int i = 0; i < count; i++) {
-            ChannelBuffer buffer = ChannelBuffers.directBuffer(ECHO_FRAME_SIZE);
+            ByteBuf buffer = Unpooled.buffer(ECHO_FRAME_SIZE);
             buffer.writeLong(System.nanoTime());
-            ch.channel.write(buffer);
+            clientMeter.write(buffer);
             try {
-                currentHistogram.addObservation(sh.observedLatency.take());
-                currentHistogram.addObservation(ch.observedLatency.take());
+                currentHistogram.addObservation(serverMeter.observedLatency.take());
+                currentHistogram.addObservation(clientMeter.observedLatency.take());
             } catch (InterruptedException e) {
                 System.out.println("ERROR: Latency Test aborted");
                 break;
@@ -94,43 +89,41 @@ public abstract class NettyLatencyTest {
     }
 
     void tearDown() {
-        ch.channel.close().awaitUninterruptibly();
-        sh.channel.close().awaitUninterruptibly();
-        ExecutorUtil.terminate(executor);
+        cb.shutdown();
+        sb.shutdown();
     }
 
-    private static class LatencyMeterHandler extends SimpleChannelUpstreamHandler {
+    private static class LatencyMeterHandler extends ChannelInboundByteHandlerAdapter {
         volatile Channel channel;
         final AtomicReference<Throwable> exception = new AtomicReference<Throwable>();
         SynchronousQueue<Long> observedLatency = new SynchronousQueue<Long>();
-        ChannelBuffer buffer = ChannelBuffers.directBuffer(ECHO_FRAME_SIZE);
-
         LatencyMeterHandler() {
         }
 
         @Override
-        public void channelOpen(ChannelHandlerContext ctx, ChannelStateEvent e)
-                throws Exception {
-            channel = e.getChannel();
+        public void channelActive(ChannelHandlerContext ctx) throws Exception {
+            channel = ctx.channel();
+        }
+
+        public void write(ByteBuf buf) {
+            channel.write(buf);
         }
 
         @Override
-        public void messageReceived(ChannelHandlerContext ctx, MessageEvent e)
-                throws Exception {
-            ChannelBuffer m = (ChannelBuffer) e.getMessage();
-            observedLatency.put((System.nanoTime() - (m.readLong())));
-            if (channel.getParent() != null) {
-                buffer.clear();
+        public void inboundBufferUpdated(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
+            observedLatency.put((System.nanoTime() - (in.readLong())));
+            if (channel.parent() != null) {
+                ByteBuf buffer =  Unpooled.buffer(ECHO_FRAME_SIZE);
                 buffer.writeLong(System.nanoTime());
                 channel.write(buffer);
             }
         }
 
         @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e)
-                throws Exception {
-            if (exception.compareAndSet(null, e.getCause())) {
-                e.getChannel().close();
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            if (exception.compareAndSet(null, cause)) {
+                cause.printStackTrace();
+                ctx.channel().close();
             }
         }
     }
