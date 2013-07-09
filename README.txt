@@ -1,4 +1,4 @@
-Measure the Local Loopback echo latency in nano seconds
+Measure the Local Loopback message latency in nano seconds
 ################
 Supported Transports: TCP and SCTP
 
