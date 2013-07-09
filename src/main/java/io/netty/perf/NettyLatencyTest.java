@@ -23,23 +23,24 @@ import io.netty.channel.*;
 import io.netty.perf.collection.Histogram;
 
 import java.net.InetSocketAddress;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CountDownLatch;
 
 public abstract class NettyLatencyTest {
-    public final static int ECHO_FRAME_SIZE= 8;
+    public final static int ECHO_FRAME_SIZE = 8;
+    public final static int LAST_PING = 0xBABE;
 
-    private final long[] latencyIntervals;
+    private final Histogram currentHistogram;
 
-    protected final LatencyMeterHandler clientMeter = new LatencyMeterHandler();
-    protected final LatencyMeterHandler serverMeter = new LatencyMeterHandler();
+    protected final LatencyClientMeter clientMeter = new LatencyClientMeter();
+    protected final LatencyServerMeter serverMeter = new LatencyServerMeter();
+
 
     private ServerBootstrap sb;
     private Bootstrap cb;
-
+    private final CountDownLatch latch = new CountDownLatch(2);
 
     public NettyLatencyTest(long[] latencyIntervals) {
-        this.latencyIntervals = latencyIntervals;
+        currentHistogram = new Histogram(latencyIntervals);
     }
 
     public void setup() {
@@ -68,37 +69,90 @@ public abstract class NettyLatencyTest {
     public abstract Class<? extends Channel> clientChannel();
 
 
-    public abstract Class<? extends Channel> serverChannel();
+    public abstract Class<? extends ServerChannel> serverChannel();
+
+    public Histogram execute(int count) throws InterruptedException {
 
 
-    public Histogram execute(int count) {
-        Histogram currentHistogram = new Histogram(latencyIntervals);
         for (int i = 0; i < count; i++) {
             ByteBuf buffer = Unpooled.buffer(ECHO_FRAME_SIZE);
             buffer.writeLong(System.nanoTime());
             clientMeter.write(buffer);
-            try {
-                currentHistogram.addObservation(serverMeter.observedLatency.take());
-                currentHistogram.addObservation(clientMeter.observedLatency.take());
-            } catch (InterruptedException e) {
-                System.out.println("ERROR: Latency Test aborted");
-                break;
-            }
         }
+
+        ByteBuf last = Unpooled.buffer(ECHO_FRAME_SIZE);
+        last.writeLong(LAST_PING);
+
+        clientMeter.write(last);
+
+        clientMeter.flush().addListener(new ChannelFutureListener() {
+            @Override
+            public void operationComplete(ChannelFuture future) throws Exception {
+                if (future.isSuccess()) {
+                    System.out.println("Sent all messages from client");
+                } else {
+                    System.out.println("Failed to send all messages from client");
+                    Throwable cause = future.cause();
+                    if (cause != null) {
+                        cause.printStackTrace();
+                    }
+                }
+            }
+        });
+
+        latch.await();
         return currentHistogram;
     }
 
     void tearDown() {
-        cb.shutdown();
-        sb.shutdown();
+        cb.group().shutdownGracefully();
+        sb.group().shutdownGracefully();
     }
 
-    private static class LatencyMeterHandler extends ChannelInboundByteHandlerAdapter {
-        volatile Channel channel;
-        final AtomicReference<Throwable> exception = new AtomicReference<Throwable>();
-        SynchronousQueue<Long> observedLatency = new SynchronousQueue<Long>();
-        LatencyMeterHandler() {
+    private class LatencyServerMeter extends ChannelInboundHandlerAdapter {
+        Channel channel;
+
+        LatencyServerMeter() {
         }
+
+        @Override
+        public void channelActive(ChannelHandlerContext ctx) throws Exception {
+            channel = ctx.channel();
+        }
+
+
+        @Override
+        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+            ByteBuf byteBuf = (ByteBuf) msg;
+            final long in = byteBuf.readLong();
+
+            if (in != LAST_PING) {
+                currentHistogram.addObservation(System.nanoTime() - in);
+                ByteBuf ack = Unpooled.buffer(ECHO_FRAME_SIZE);
+                ack.writeLong(System.nanoTime());
+                channel.write(ack);
+            } else {
+                ByteBuf ping = Unpooled.buffer(ECHO_FRAME_SIZE);
+                ping.writeLong(LAST_PING);
+                channel.write(ping);
+                latch.countDown();
+            }
+        }
+
+        @Override
+        public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+            ctx.flush();
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+            cause.printStackTrace();
+            ctx.channel().close();
+        }
+    }
+
+    private class LatencyClientMeter extends ChannelInboundHandlerAdapter {
+        Channel channel;
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -109,22 +163,31 @@ public abstract class NettyLatencyTest {
             channel.write(buf);
         }
 
+        public ChannelFuture flush() {
+            return channel.flush();
+        }
+
         @Override
-        public void inboundBufferUpdated(ChannelHandlerContext ctx, ByteBuf in) throws Exception {
-            observedLatency.put((System.nanoTime() - (in.readLong())));
-            if (channel.parent() != null) {
-                ByteBuf buffer =  Unpooled.buffer(ECHO_FRAME_SIZE);
-                buffer.writeLong(System.nanoTime());
-                channel.write(buffer);
+        public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+            ByteBuf buffer = (ByteBuf) msg;
+            final long in = buffer.readLong();
+
+            if (in != LAST_PING) {
+                currentHistogram.addObservation(System.nanoTime() - in);
+            } else {
+                latch.countDown();
             }
         }
 
         @Override
+        public void channelReadComplete(ChannelHandlerContext ctx) throws Exception {
+            ctx.flush();
+        }
+
+        @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-            if (exception.compareAndSet(null, cause)) {
-                cause.printStackTrace();
-                ctx.channel().close();
-            }
+            cause.printStackTrace();
+            ctx.channel().close();
         }
     }
 }

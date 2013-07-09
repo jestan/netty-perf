@@ -20,15 +20,15 @@ import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
-import io.netty.channel.socket.nio.NioEventLoopGroup;
+import io.netty.channel.ServerChannel;
+import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.FixedLengthFrameDecoder;
-import io.netty.perf.NettyLatencyTest;
 
-public class TcpLatencyTest extends NettyLatencyTest {
+public class NioTcpLatencyTest extends NettyLatencyTest {
 
-    public TcpLatencyTest(long[] latencyIntervals) {
+    public NioTcpLatencyTest(long[] latencyIntervals) {
         super(latencyIntervals);
     }
 
@@ -57,7 +57,9 @@ public class TcpLatencyTest extends NettyLatencyTest {
                                 addLast(new FixedLengthFrameDecoder(ECHO_FRAME_SIZE)).
                                 addLast(clientMeter);
                     }
-                }).option(ChannelOption.TCP_NODELAY, true);
+                }).option(ChannelOption.TCP_NODELAY, true).
+                option(ChannelOption.SO_RCVBUF, 1024 * 1024 * 1024).
+                option(ChannelOption.SO_SNDBUF, 1024 * 1024 * 1024);
     }
 
     @Override
@@ -66,7 +68,7 @@ public class TcpLatencyTest extends NettyLatencyTest {
     }
 
     @Override
-    public Class<? extends Channel> serverChannel() {
+    public Class<? extends ServerChannel> serverChannel() {
         return NioServerSocketChannel.class;
     }
 }

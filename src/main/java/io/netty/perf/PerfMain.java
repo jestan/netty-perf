@@ -18,29 +18,28 @@ package io.netty.perf;
 import io.netty.perf.collection.Histogram;
 
 public class PerfMain {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception{
         long[] intervals = new long[255];//256 intervals
         final long minLatency = 50000L;
         long intervalUpperBound = minLatency;
         intervals[0] = minLatency;
-        for (int i = 1, size = intervals.length - 1; i < size; i++) {
+        for (int i = 1, size = intervals.length; i < size; i++) {
             intervalUpperBound += minLatency;
             intervals[i] = intervalUpperBound;
         }
 
-        intervals[intervals.length - 1] = Long.MAX_VALUE;
-
-        executePerf(new SctpLatencyTest(intervals), 100000);
-        executePerf(new TcpLatencyTest(intervals), 100000);
+        executePerf(new NioSctpLatencyTest(intervals), 100000);
+        executePerf(new NioTcpLatencyTest(intervals), 100000);
     }
 
-    private static void executePerf(NettyLatencyTest perfBench, int count) {
+    private static void executePerf(NettyLatencyTest perfBench, int count) throws InterruptedException{
         try {
             perfBench.setup();
+            System.out.println("************************************************");
+            System.out.println("********** Running " + perfBench.getClass().getSimpleName() + " **********");
             final Histogram observations = perfBench.execute(count);
-            System.out.println("*********************************************************");
             System.out.println(observations);
-            System.out.println("*********************************************************");
+            System.out.println("************************************************");
         } finally {
             perfBench.tearDown();
         }

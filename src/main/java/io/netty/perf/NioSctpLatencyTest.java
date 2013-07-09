@@ -19,19 +19,30 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.socket.nio.NioEventLoopGroup;
-import io.netty.channel.socket.nio.NioSctpChannel;
-import io.netty.channel.socket.nio.NioSctpServerChannel;
+import io.netty.channel.ServerChannel;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.sctp.SctpChannelOption;
+import io.netty.channel.sctp.nio.NioSctpChannel;
+import io.netty.channel.sctp.nio.NioSctpServerChannel;
 import io.netty.handler.codec.sctp.SctpInboundByteStreamHandler;
-import io.netty.handler.codec.sctp.SctpMessageCompletionHandler;
 import io.netty.handler.codec.sctp.SctpOutboundByteStreamHandler;
-import io.netty.perf.NettyLatencyTest;
 
-public class SctpLatencyTest extends NettyLatencyTest {
+import java.util.ArrayList;
+import java.util.List;
 
-    public SctpLatencyTest(long[] latencyIntervals) {
+public class NioSctpLatencyTest extends NettyLatencyTest {
+
+    final int PROTOCOL_ID = 0;
+    final int MAX_INBOUND_STREAMS = 10;
+    final int MAX_OUTBOUND_STREAMS = 10;
+
+
+    List<Integer> streamConfig = new ArrayList<Integer>(2);
+
+    public NioSctpLatencyTest(long[] latencyIntervals) {
         super(latencyIntervals);
+        streamConfig.add(MAX_INBOUND_STREAMS);
+        streamConfig.add(MAX_OUTBOUND_STREAMS);
     }
 
     @Override
@@ -43,12 +54,15 @@ public class SctpLatencyTest extends NettyLatencyTest {
                     @Override
                     public void initChannel(Channel ch) throws Exception {
                         ch.pipeline().
-//                                addLast(new SctpMessageCompletionHandler()).
-                                addLast(new SctpInboundByteStreamHandler(0, 0)).
-                                addLast(new SctpOutboundByteStreamHandler(0, 0)).
+                                addLast(new SctpInboundByteStreamHandler(PROTOCOL_ID, 0, 9)).
+                                addLast(new SctpOutboundByteStreamHandler(PROTOCOL_ID, 0, 9)).
                                 addLast(serverMeter);
                     }
-                }).option(ChannelOption.SCTP_NODELAY, true);
+                }).
+                option(SctpChannelOption.SCTP_NODELAY, true).
+                option(SctpChannelOption.SCTP_INIT_MAXSTREAMS, streamConfig);
+//                option(SctpChannelOption.SO_RCVBUF, 1024 * 1024 * 1024).
+//                option(SctpChannelOption.SO_SNDBUF, 1024 * 1024 * 1024);
     }
 
     @Override
@@ -60,12 +74,15 @@ public class SctpLatencyTest extends NettyLatencyTest {
                     @Override
                     public void initChannel(Channel ch) throws Exception {
                         ch.pipeline().
-//                                addLast(new SctpMessageCompletionHandler()).
-                                addLast(new SctpInboundByteStreamHandler(0, 0)).
-                                addLast(new SctpOutboundByteStreamHandler(0, 0)).
+                                addLast(new SctpInboundByteStreamHandler(PROTOCOL_ID, 0, 9)).
+                                addLast(new SctpOutboundByteStreamHandler(PROTOCOL_ID, 0, 9)).
                                 addLast(clientMeter);
                     }
-                }).option(ChannelOption.SCTP_NODELAY, true);
+                }).
+                option(SctpChannelOption.SCTP_NODELAY, true).
+                option(SctpChannelOption.SCTP_INIT_MAXSTREAMS, streamConfig).
+                option(SctpChannelOption.SO_RCVBUF, 1024 * 1024 * 1024).
+                option(SctpChannelOption.SO_SNDBUF, 1024 * 1024 * 1024);
     }
 
     @Override
@@ -74,7 +91,7 @@ public class SctpLatencyTest extends NettyLatencyTest {
     }
 
     @Override
-    public Class<? extends Channel> serverChannel() {
+    public Class<? extends ServerChannel> serverChannel() {
         return NioSctpServerChannel.class;
     }
 
