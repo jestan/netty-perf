@@ -83,9 +83,7 @@ public abstract class NettyLatencyTest {
         ByteBuf last = Unpooled.buffer(ECHO_FRAME_SIZE);
         last.writeLong(LAST_PING);
 
-        clientMeter.write(last);
-
-        clientMeter.flush().addListener(new ChannelFutureListener() {
+        clientMeter.writeAndFlush(last).addListener(new ChannelFutureListener() {
             @Override
             public void operationComplete(ChannelFuture future) throws Exception {
                 if (future.isSuccess()) {
@@ -163,8 +161,8 @@ public abstract class NettyLatencyTest {
             channel.write(buf);
         }
 
-        public ChannelFuture flush() {
-            return channel.flush();
+        public ChannelFuture writeAndFlush(ByteBuf buf) {
+            return channel.writeAndFlush(buf);
         }
 
         @Override

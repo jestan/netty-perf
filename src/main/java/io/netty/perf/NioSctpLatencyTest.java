@@ -59,10 +59,10 @@ public class NioSctpLatencyTest extends NettyLatencyTest {
                                 addLast(serverMeter);
                     }
                 }).
-                option(SctpChannelOption.SCTP_NODELAY, true).
-                option(SctpChannelOption.SCTP_INIT_MAXSTREAMS, streamConfig);
+                option(SctpChannelOption.SCTP_INIT_MAXSTREAMS, streamConfig).
 //                option(SctpChannelOption.SO_RCVBUF, 1024 * 1024 * 1024).
-//                option(SctpChannelOption.SO_SNDBUF, 1024 * 1024 * 1024);
+//                option(SctpChannelOption.SO_SNDBUF, 1024 * 1024 * 1024).
+                option(SctpChannelOption.SCTP_NODELAY, true);
     }
 
     @Override
