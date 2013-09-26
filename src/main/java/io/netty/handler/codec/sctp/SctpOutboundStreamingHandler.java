@@ -31,6 +31,8 @@ public class SctpOutboundStreamingHandler extends MessageToMessageEncoder<ByteBu
     private final int minStream;
     private final int maxStream;
 
+    private final int divider;
+
     private final AtomicLong streamCounter;
 
     /**
@@ -50,14 +52,16 @@ public class SctpOutboundStreamingHandler extends MessageToMessageEncoder<ByteBu
         this.minStream = minStream;
         this.maxStream = maxStream;
         this.streamCounter = new AtomicLong(minStream);
+
+        this.divider = maxStream + 1;
     }
 
     @Override
     protected void encode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) throws Exception {
-        out.add(new SctpMessage(protocolIdentifier, selectStreamByRoundRobin(), msg.retain()));
+        out.add(new SctpMessage(protocolIdentifier, (int) selectStreamByRoundRobin(), msg.retain()));
     }
 
-    private int selectStreamByRoundRobin() {
-        return minStream + (int) (streamCounter.getAndIncrement() % (maxStream + 1));
+    private long selectStreamByRoundRobin() {
+        return minStream + (streamCounter.getAndIncrement() % divider);
     }
 }

@@ -18,7 +18,7 @@
         <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-transport-sctp</artifactId>
-            <version>4.0.3.Final</version>
+            <version>4.0.9.Final</version>
         </dependency>
     </dependencies>
 

@@ -28,7 +28,6 @@ public class PerfMain {
             intervals[i] = intervalUpperBound;
         }
 
-        executePerf(new NioSctpLatencyTest(intervals), 100000);
         executePerf(new NioTcpLatencyTest(intervals), 100000);
     }
 

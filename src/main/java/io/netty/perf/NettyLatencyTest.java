@@ -18,7 +18,7 @@ package io.netty.perf;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.channel.*;
 import io.netty.perf.collection.Histogram;
 
@@ -72,15 +72,15 @@ public abstract class NettyLatencyTest {
     public abstract Class<? extends ServerChannel> serverChannel();
 
     public Histogram execute(int count) throws InterruptedException {
-
+        ByteBufAllocator bufAllocator = clientMeter.channel.alloc();
 
         for (int i = 0; i < count; i++) {
-            ByteBuf buffer = Unpooled.buffer(ECHO_FRAME_SIZE);
+            ByteBuf buffer = bufAllocator.ioBuffer(ECHO_FRAME_SIZE);
             buffer.writeLong(System.nanoTime());
             clientMeter.write(buffer);
         }
 
-        ByteBuf last = Unpooled.buffer(ECHO_FRAME_SIZE);
+        ByteBuf last = bufAllocator.ioBuffer(ECHO_FRAME_SIZE);
         last.writeLong(LAST_PING);
 
         clientMeter.writeAndFlush(last).addListener(new ChannelFutureListener() {
@@ -126,11 +126,11 @@ public abstract class NettyLatencyTest {
 
             if (in != LAST_PING) {
                 currentHistogram.addObservation(System.nanoTime() - in);
-                ByteBuf ack = Unpooled.buffer(ECHO_FRAME_SIZE);
+                ByteBuf ack = ctx.alloc().ioBuffer(ECHO_FRAME_SIZE);
                 ack.writeLong(System.nanoTime());
                 channel.write(ack);
             } else {
-                ByteBuf ping = Unpooled.buffer(ECHO_FRAME_SIZE);
+                ByteBuf ping = ctx.alloc().ioBuffer(ECHO_FRAME_SIZE);
                 ping.writeLong(LAST_PING);
                 channel.write(ping);
                 latch.countDown();
